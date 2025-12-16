@@ -1,0 +1,880 @@
+asyncapi: 3.0.0
+info:
+  title: Asynchroniczna bramka B2B
+  version: '0.0.1'
+  description: |
+    Specyfikacja komunikatów wysyłanych asynchronicznie przy użyciu RabbitMq dla klientów wykorzysujących kanał B2B.
+
+defaultContentType: application/json
+
+servers:
+  rabbit:
+    host: "${PSE_AMQP}"
+    protocol: amqps
+    protocolVersion: '1.0'
+    description: B2B RabbitMQ broker
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+    bindings:
+      amqp:
+        vhost: '/'
+        heartbeat: 30
+        locale: pl-PL
+        tls: true
+        bindingVersion: '0.3.0'
+
+channels:
+  redispatch-request.{clientId}:
+    address: redispatch-request.{clientId}
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do odbioru poleceń redysponowania w ramach zdefiniowanego klienta
+    parameters:
+      clientId:
+        description: Unikalny 5-znakowy identyfikator klienta.
+        location: $message.header#/clientId
+    messages:
+      RedispatchRequestMessage:
+        $ref: '#/components/messages/RedispatchRequestMessageDto'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: redispatch-request.{clientId}
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: '0.3.0'
+
+  redispatch-decision-response:
+    address: redispatch-decision-response
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do wysyłania odpowiedzi na wydane polecenie redysponowania.
+    messages:
+      RedispatchDecisionResponseMessage:
+        $ref: '#/components/messages/RedispatchDecisionResponseMessageDto'
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          vhost: /
+          autoDelete: false
+          durable: true
+          name: redispatch
+          type: topic
+        bindingVersion: '0.3.0'
+
+  redispatch-information.{clientId}:
+    address: redispatch-information.{clientId}
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do odbioru informacji o wydaniu polecenia redysponowania w ramach zdefiniowanego klienta
+    parameters:
+      clientId:
+        description: Unikalny 5-znakowy identyfikator klienta.
+        location: $message.header#/clientId
+    messages:
+      RedispatchInformationMessage:
+        $ref: '#/components/messages/RedispatchInformationMessageDto'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: redispatch-information.{clientId}
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: '0.3.0'
+
+  redispatch-objects-configuration-query:
+    address: redispatch-objects-configuration-query
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do wysłania zapytania o konfigurację obiektów redysponowania.
+    messages:
+      RedispatchObjectsConfigurationQueryMessage:
+        $ref: '#/components/messages/RedispatchObjectsConfigurationQueryMessageDto'
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          vhost: /
+          autoDelete: false
+          durable: true
+          name: redispatch
+          type: topic
+        bindingVersion: '0.3.0'
+
+  redispatch-objects-configuration-response.{clientId}:
+    address: redispatch-objects-configuration-response.{clientId}
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do odbioru informacji o konfiguracji obiektów redysponowania w ramach zdefiniowanego klienta.
+    messages:
+      RedispatchObjectsConfigurationResponseMessage:
+        $ref: '#/components/messages/RedispatchObjectsConfigurationResponseMessageDto'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: redispatch-objects-configuration-response.{clientId}
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: '0.3.0'
+
+  validation:
+    address: validation
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do nadawania komunikatu informującego o wyniku walidacji odebranej wiadomości.
+    messages:
+      ValidationMessage:
+        $ref: '#/components/messages/ValidationMessageDto'
+    bindings:
+      amqp:
+        is: routingKey
+        exchange:
+          vhost: /
+          autoDelete: false
+          durable: true
+          name: validation
+          type: topic
+        bindingVersion: '0.3.0'
+
+  validation.{clientId}:
+    address: validation.{clientId}
+    servers:
+      - $ref: '#/servers/rabbit'
+    description: Kanał do odbioru komunikatu informującego o wyniku walidacji odebranej wiadomości.
+    messages:
+      ValidationMessage:
+        $ref: '#/components/messages/ValidationMessageDto'
+    bindings:
+      amqp:
+        is: queue
+        queue:
+          name: validation.{clientId}
+          durable: true
+          exclusive: false
+          autoDelete: false
+        bindingVersion: '0.3.0'
+
+operations:
+  receiveRedispatchRequest:
+    title: Operacja odbioru polecenia redysponowania do klienta
+    action: receive
+    channel:
+      $ref: '#/channels/redispatch-request.{clientId}'
+    summary: Odbieranie komunikatu polecenia redysponowania w ramach klienta.
+    messages:
+      - $ref: '#/channels/redispatch-request.{clientId}/messages/RedispatchRequestMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  sendRedispatchDecisionResponse:
+    title: Operacja wysłania odpowiedzi na wydane polecenie redysponowania
+    action: send
+    channel:
+      $ref: '#/channels/redispatch-decision-response'
+    summary: Nadanie komunikatu polecenia redysponowania w ramach klienta.
+    messages:
+      - $ref: '#/channels/redispatch-decision-response/messages/RedispatchDecisionResponseMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  receiveRedispatchInformation:
+    title: Operacja odbioru informacji o wydaniu polecenia redysponowania
+    action: receive
+    channel:
+      $ref: '#/channels/redispatch-information.{clientId}'
+    summary: Odbieranie informacji o wydaniu polecenia redysponowania w ramach klienta.
+    messages:
+      - $ref: '#/channels/redispatch-information.{clientId}/messages/RedispatchInformationMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  sendRedispatchObjectsConfigurationQuery:
+    title: Operacja zapytania o konfigurację obiektów redysponowania
+    action: send
+    channel:
+      $ref: '#/channels/redispatch-objects-configuration-query'
+    summary: Operacja zapytania o konfigurację obiektów redysponowania.
+    messages:
+      - $ref: '#/channels/redispatch-objects-configuration-query/messages/RedispatchObjectsConfigurationQueryMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  receiveRedispatchObjectsConfigurationResponse:
+    title: Operacja odbioru informacji o konfiguracji obiektów redysponowania
+    action: receive
+    channel:
+      $ref: '#/channels/redispatch-objects-configuration-response.{clientId}'
+    summary: Operacja odbioru informacji o konfiguracji obiektów redysponowania.
+    messages:
+      - $ref: '#/channels/redispatch-objects-configuration-response.{clientId}/messages/RedispatchObjectsConfigurationResponseMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  sendValidationMessage:
+    title: Operacja nadania komunikatu z wynikiem waliadcji wiadomości przychodzącej
+    action: send
+    channel:
+      $ref: '#/channels/validation'
+    summary: Operacja nadania komunikatu z wynikiem waliadcji wiadomości przychodzącej.
+    messages:
+      - $ref: '#/channels/validation/messages/ValidationMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+  receiveValidationMessage:
+    title: Operacja odbioru komunikatu z wynikiem waliadcji wiadomości przychodzącej
+    action: receive
+    channel:
+      $ref: '#/channels/validation.{clientId}'
+    summary: Operacja odbioru komunikatu z wynikiem waliadcji wiadomości przychodzącej.
+    messages:
+      - $ref: '#/channels/validation/messages/ValidationMessage'
+    security:
+      - $ref: '#/components/securitySchemes/oauth2'
+
+components:
+  messages:
+    RedispatchRequestMessageDto:
+      name: Polecenie redysponowania
+      title: Polecenie redysponowania
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RedispatchRequestDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.payload#/serverMsqId
+
+    RedispatchDecisionResponseMessageDto:
+      name: Odpowiedź na wydane polecenie redysponowania
+      title: Odpowiedź na wydane polecenie redysponowania
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RedispatchDecisionResponseDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.header#/serverMsqId
+
+    RedispatchInformationMessageDto:
+      name: Informacja o wydaniu polecenia redysponowania
+      title: Informacja o wydaniu polecenia redysponowania
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RedispatchInformationDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.payload#/serverMsqId
+
+    RedispatchObjectsConfigurationQueryMessageDto:
+      name: Zapytanie o konfigurację obiektów redysponowania
+      title: Zapytanie o konfigurację obiektów redysponowania
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RedispatchObjectsConfigurationQueryDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.payload#/serverMsqId
+
+    RedispatchObjectsConfigurationResponseMessageDto:
+      name: Informacja o konfiguracji obiektów redysponowania
+      title: Informacja o konfiguracji obiektów redysponowania
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/RedispatchObjectsConfigurationResponseDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.payload#/serverMsqId
+
+    ValidationMessageDto:
+      name: Odpowiedź z wynikiem walidacji poprawności odebranego komunikatu
+      title: Odpowiedź z wynikiem walidacji poprawności odebranego komunikatu
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ValidationDto'
+      correlationId:
+        description: Korelacja na podstawie serverMsqId z nagłówka.
+        location: $message.payload#/refMsqId
+
+  schemas:
+    BaseHeaderDto:
+      type: object
+      additionalProperties: false
+      required:
+        - serverMsgId
+        - creationDateTime
+        - stdVersion
+      properties:
+        serverMsgId:
+          type: string
+          description: "identyfikator komunikatu nadawany ze strony OSP"
+          format: uuid
+          examples:
+            - d0443a92-f807-45f0-867e-70cf5321dec7
+        creationDateTime:
+          type: string
+          format: date-time
+          description: "Data utworzenia komunikatu. Data i czas w formacie YYYY-MM-DDThh:mm:ss, podawana w czasie UTC "
+          pattern: 'Z$'
+          examples:
+            - 2002-09-24T12:21:47Z
+        stdVersion:
+          type: string
+          description: "Wersja standardów B2B"
+          minLength: 3
+          maxLength: 3
+
+    RedispatchRequestDto:
+      type: object
+      additionalProperties: false
+      required:
+        - header
+        - redispatchOrderPeriod
+        - redispatchOrder
+      properties:
+        header:
+          allOf:
+            - $ref: '#/components/schemas/BaseHeaderDto'
+            - type: object
+              required:
+                - clientId
+                - type
+                - redispatchOrderCode
+                - redispatchOrderReason
+              properties:
+                clientId:
+                  type: string
+                  description: "Identyfikator podmiotu (OSDp, Wytwórcy przyłączonego do Sieci Przesyłowej), który odpowiada za realizację polecenia redysponowania. Identyfikator zgodny z bazą Partnerów Biznesowych PSE."
+                  minLength: 5
+                  maxLength: 5
+                type:
+                  type: string
+                  description: "Typ komunikatu. Dopuszczalna wartość  to PNR - polecenie redysponowania."
+                  enum: [ PNR ]
+                redispatchOrderCode:
+                  type: string
+                  description: "Biznesowy kod polecenia redysponowania"
+                  minLength: 20
+                  maxLength: 20
+                  examples:
+                    - 1/I/22.07.2025
+                redispatchOrderReason:
+                  type: string
+                  description: "Cel wydania polecenia redysponowania. Dopuszczalne wartości to B - polecenie bilansowe, S - polecenie sieciowe."
+                  enum: [B, S]
+        redispatchOrderPeriod:
+          $ref: '#/components/schemas/RedispatchOrderPeriodDto'
+        redispatchOrders:
+          type: array
+          minItems: 1
+          description: "Dane wydanego polecenia redysponowania"
+          items:
+            $ref: '#/components/schemas/RedispatchOrderDto'
+
+    RedispatchInformationDto:
+      type: object
+      additionalProperties: false
+      required:
+        - header
+        - redispatchOrderPeriod
+        - redispatchOrder
+      properties:
+        header:
+          allOf:
+            - $ref: '#/components/schemas/BaseHeaderDto'
+            - type: object
+              required:
+                - clientId
+                - type
+                - redispatchOrderCode
+                - redispatchOrderReason
+              properties:
+                clientId:
+                  type: string
+                  description: Identyfikator podmiotu (Wytwórcy przyłączonego do Sieci Przesyłowej), który odpowiada za realizację polecenia redysponowania
+                  minLength: 5
+                  maxLength: 5
+                type:
+                  type: string
+                  description: "Typ komunikatu. Dopuszczalna wartość słownikowa to INR - informacja o wydaniu polecenia redysponowania."
+                  enum: [ INR ]
+                redispatchOrderCode:
+                  type: string
+                  description: "Biznesowy kod polecenia redysponowania"
+                  minLength: 20
+                  maxLength: 20
+                  examples:
+                    - 1/I/22.07.2025
+                redispatchOrderReason:
+                  type: string
+                  description: "Cel wydania polecenia redysponowania. Dopuszczalne wartości to B - polecenie bilansowe, S - polecenie sieciowe."
+                  enum: [B, S]
+        redispatchOrderPeriod:
+          $ref: '#/components/schemas/RedispatchOrderPeriodDto'
+        redispatchOrders:
+          type: array
+          minItems: 1
+          description: "Dane wydanego polecenia redysponowania"
+          items:
+            $ref: '#/components/schemas/RedispatchOrderDto'
+
+    RedispatchOrderDto:
+      type: object
+      additionalProperties: false
+      required:
+        - redispatchingObjectMrid
+        - measurementUnit
+        - curveType
+        - seriesPeriods
+      properties:
+        redispatchingObjectMrid:
+          type: string
+          format: uuid
+          description: "mRID obiektu redysponowania"
+          examples:
+            - 5da114ac-a3ef-450d-a9db-d2208eb0ccc0
+        measurementUnit:
+          type: string
+          description: "Jednostka danych. Dopuszczalna wartość to MAW - megawaty"
+          enum: [ MAW ]
+          minLength: 3
+          maxLength: 3
+        curveType:
+          type: string
+          description: "Typ krzywej. Określa sposób interpretacji wartości w podanych pozycjach. Dopuszczalna wartość to A01 - kolejne odcinki czasu; występują wszystkie punkty wg zadanej rozdzielczości."
+          enum: [ A01 ]
+          minLength: 3
+          maxLength: 3
+        seriesPeriods:
+          type: array
+          minItems: 1
+          description: "Serie danych w punktach czasowych"
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - direction
+              - autogenerationRedispatch
+              - resolution
+              - timeInterval
+              - seriesPoints
+            properties:
+              direction:
+                type: string
+                description: "Kierunek, którego dotyczy polecenie redysponowania. Dopuszczalne wartości to G - generacja, P - pobór"
+                enum: [ G, P ]
+              autogenerationRedispatch:
+                type: string
+                description: "Znacznik ograniczenia autogeneracji. Określa czy ograniczana jest moc generacji łącznie z mocą wytwarzaną na własne potrzeby i niewprowadzaną do sieci. Dotyczy tylko obiektów ze znacznikiem autogeneracja. Dla pozostałych zawsze wartość 0."
+                enum: [ '0', '1' ]
+              resolution:
+                type: string
+                description: "Rozdzielczość (ziarno). Dopuszczalne wartości to P1D - doba, PT60M - godzina, PT15M - kwadrans"
+                enum: [ P1D, PT60M, PT15M ]
+              timeInterval:
+                type: object
+                description: "Podokres danych wydanego polecenia redysponowania"
+                additionalProperties: false
+                required: [ startDt, endDt ]
+                properties:
+                  startDt:
+                    type: string
+                    format: date-time
+                    description: "Początek podokresu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w UTC z dokładnością do pełnych 15 minut (sekundy zostaną pominięte)"
+                    pattern: 'Z$'
+                    examples:
+                      - 2023-09-24T12:00:00Z
+                  endDt:
+                    type: string
+                    format: date-time
+                    description: "Koniec podokresu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w UTC z dokładnością do pełnych 15 minut (sekundy zostaną pominięte)"
+                    pattern: 'Z$'
+                    examples:
+                      - 2023-09-24T14:30:00Z
+              seriesPoints:
+                type: object
+                description: "Dane w punktach czasowych"
+                additionalProperties: false
+                required: [ position, quantityMax, quantityMin ]
+                properties:
+                  position:
+                    type: integer
+                    description: "Numer pozycji czasowej w odniesieniu do początku podokresu z uwzględnieniem podanej rozdzielczości"
+                    minimum: 0
+                    maximum: 999999
+                  quantityMax:
+                    type: number
+                    description: "Wartość maksymalna ze względu na polecenie redysponowania"
+                    minimum: 0
+                    maximum: 99999.999
+                    multipleOf: 0.001
+                  quantityMin:
+                    type: number
+                    description: "Wartość minimalna ze względu na polecenie redysponowania"
+                    minimum: 0
+                    maximum: 99999.999
+                    multipleOf: 0.001
+
+    RedispatchOrderPeriodDto:
+      type: object
+      additionalProperties: false
+      description: "Okres wydanego polecenia redysponowania"
+      required: [ startDt, endDt ]
+      properties:
+        startDt:
+          type: string
+          format: date-time
+          description: "Początek okresu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w UTC z dokładnością do pełnych 15 minut (sekundy zostaną pominięte)"
+          pattern: 'Z$'
+          examples:
+            - 2023-09-24T12:00:00Z
+        endDt:
+          type: string
+          format: date-time
+          description: "Koniec okresu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w UTC z dokładnością do pełnych 15 minut (sekundy zostaną pominięte)"
+          pattern: 'Z$'
+          examples:
+            - 2023-09-24T14:30:00Z
+
+    RedispatchDecisionResponseDto:
+      type: object
+      description: "Odpowiedź na wydane polecenie redysponowania"
+      required:
+        - header
+        - redispatchOrderPeriod
+        - redispatchOrderDecision
+      properties:
+        header:
+          allOf:
+            - $ref: '#/components/schemas/BaseHeaderDto'
+            - type: object
+              required:
+                - clientId
+                - clientMsgId
+                - type
+                - redispatchOrderCode
+              properties:
+                clientId:
+                  type: string
+                  description: Identyfikator podmiotu (OSDp), który odpowiada na wydane polecenie redysponowania. Identyfikator zgodny z bazą Partnerów Biznesowych PSE
+                  minLength: 5
+                  maxLength: 5
+                clientMsgId:
+                  type: string
+                  description: Identyfikator komunikatu nadany przez nadawcę. Nadawca zapewnia jego unikalność
+                  format: uuid
+                  examples:
+                    - d0443a92-f807-45f0-867e-70cf5321dec7
+                type:
+                  type: string
+                  description: "Typ komunikatu. Dopuszczalna wartość słownikowa to DNR - odpowiedź na wydane polecenie redysponowania"
+                  enum: [ DNR ]
+                redispatchOrderCode:
+                  type: string
+                  description: "Biznesowy kod polecenia redysponowania"
+                  minLength: 20
+                  maxLength: 20
+                  examples:
+                    - 1/I/22.07.2025
+        redispatchOrderPeriod:
+          $ref: '#/components/schemas/RedispatchOrderPeriodDto'
+        redispatchOrderDecision:
+          type: object
+          description: "Decyzja o realizacji wydanego polecenia redysponowania"
+          required:
+            - orderDecision
+          properties:
+            orderDecision:
+              type: string
+              description: "Decyzja o realizacji wydanego polecenia redysponowania. Dopuszczalne wartości słownikowe to POTW - potwierdzenie przyjęcia do realizacji polecenia redysponowania, ODRZ - informacja o odrzuceniu polecenia redysponowania."
+              enum: [ POTW , ODRZ  ]
+            message:
+              description: "Opis (krótki komentarz opisujący decyzję o realizacji polecenia redysponowania lub o odrzuceniu polecenia)"
+              type: string
+              maxLength: 512
+
+    RedispatchObjectsConfigurationQueryDto:
+      type: object
+      description: Zapytanie o konfigurację obiektów redysponowania
+      required:
+        - header
+        - objectConfigRequest
+      properties:
+        header:
+          additionalProperties: false
+          required:
+            - clientId
+            - clientMsgId
+            - type
+            - creationDateTime
+            - stdVersion
+          properties:
+            clientId:
+              type: string
+              description: Identyfikator podmiotu (OSDp), który wysyła zapytanie o konfigurację obiektów redysponowania przyłączonych do sieci tego OSD. Identyfikator zgodny z bazą Partnerów Biznesowych PSE
+              minLength: 5
+              maxLength: 5
+            clientMsgId:
+              type: string
+              description: Identyfikator komunikatu zapytania
+              format: uuid
+              examples:
+                - d0443a92-f807-45f0-867e-70cf5321dec7
+            type:
+              type: string
+              description: "Typ komunikatu. Dopuszczalna wartość to ZKO - zapytanie o konfigurację obiektów redysponowania"
+              enum: [ ZKO ]
+            creationDateTime:
+              type: string
+              format: date-time
+              description: "Data utworzenia komunikatu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w czasie UTC."
+              pattern: 'Z$'
+              examples:
+                - 2002-09-24T12:21:47Z
+            stdVersion:
+              type: string
+              description: "Wersja standardów B2B"
+              minLength: 3
+              maxLength: 3
+        objectConfigRequest:
+          additionalProperties: false
+          required:
+            - requestType
+            - requestDate
+          properties:
+            requestType:
+              type: string
+              description: "Typ zapytania. 0 - zapytanie o listę wszystkich obiektów redysponowania danego OSD. 1 - zapytanie o listę wszystkich obiektów obiekty redysponowania danego OSD wraz z listą zasobów składających się na każdy z tych obiektów. 2 - zapytanie o listę zasobów składających się na wskazany obiekt redysponowania."
+              enum: [0, 1, 2]
+            requestDate:
+              type: string
+              format: date
+              description: "Doba konfiguracji. W odpowiedzi przekazana zostanie konfiguracja obiektów - stan na dzień wskazany w zapytaniu."
+              pattern: 'YYYY-MM-DD'
+              examples:
+                - 2025-10-24
+            redispatchingObjectList:
+              type: array
+              minItems: 0
+              description: "Lista obiektów redysponowania"
+              items:
+                type: string
+                format: uuid
+                description: mRID obiektu redysponowania.
+
+    RedispatchObjectsConfigurationResponseDto:
+      type: object
+      description: Informacja o konfiguracji obiektów redysponowania
+      required:
+        - header
+        - objectConfigRequest
+      properties:
+        header:
+          additionalProperties: false
+          required:
+            - clientId
+            - clientMsgId
+            - serverMsgId
+            - type
+            - creationDateTime
+            - stdVersion
+          properties:
+            clientId:
+              type: string
+              description: Identyfikator podmiotu (OSDp), który uprzednio wysłał zapytanie o konfigurację obiektów redysponowania i jest odbiorcą informacji o konfiguracji obiektów Identyfikator zgodny z bazą Partnerów Biznesowych PSE
+              minLength: 5
+              maxLength: 5
+            clientMsgId:
+              type: string
+              description: Identyfikator przesłanego uprzednio komunikatu, na który odpowiada niniejszy komunikat
+              format: uuid
+              examples:
+                - d0443a92-f807-45f0-867e-70cf5321dec7
+            serverMsgId:
+              type: string
+              description: Unikalny identyfikator komunikatu nadany przez OSP
+              format: uuid
+              examples:
+                - d0443a92-f807-45f0-867e-70cf5321dec7
+            type:
+              type: string
+              description: "Typ komunikatu. Dopuszczalna wartość to IKO - informacja o konfiguracji obiektów redysponowania"
+              enum: [ IKO ]
+            creationDateTime:
+              type: string
+              format: date-time
+              description: "Data utworzenia komunikatu. Data i czas w formacie YYYY-MM-DDThh:mm:ss. Podawana w czasie UTC"
+              pattern: 'Z$'
+              examples:
+                - 2002-09-24T12:21:47Z
+            stdVersion:
+              type: string
+              description: "Wersja standardów B2B"
+              minLength: 3
+              maxLength: 3
+        objectConfigRequest:
+          required:
+            - requestType
+            - requestDate
+          properties:
+            requestType:
+              type: string
+              description: "Typ zapytania. 0 - zapytanie o listę wszystkich obiektów redysponowania danego OSD. 1 - zapytanie o listę wszystkich obiektów obiekty redysponowania danego OSD wraz z listą zasobów składających się na każdy z tych obiektów. 2 - zapytanie o listę zasobów składających się na wskazany obiekt redysponowania."
+              enum: [0, 1, 2]
+            requestDate:
+              type: string
+              format: date
+              description: "Doba konfiguracji. Czyli stan konfiguracji obiektów na dzień wskazany w komunikacie."
+              pattern: 'YYYY-MM-DD'
+              examples:
+                - 2023-09-24
+            redispatchingObjects:
+              type: array
+              minItems: 1
+              description: Lista obiektów redysponowania
+              items:
+                type: object
+                required:
+                  - redispatchingObjectMrid
+                  - redispatchingObjectCode
+                properties:
+                  redispatchingObjectMrid:
+                    type: string
+                    format: uuid
+                    description: mRID obiektu redysponowania
+                  redispatchingObjectCode:
+                    type: string
+                    minLength: 38
+                    maxLength: 38
+                    description: Kod obiektu redysponowania
+                    example: KA-10106-19027-03/P/PV/PD/G1/WN/BZ/BI/
+                  objectResources:
+                    type: array
+                    minItems: 0
+                    items:
+                      type: object
+                      required:
+                        - registeredResourceMrid
+                        - registeredResourceCode
+                        - registeredResourcePRef
+                      properties:
+                        registeredResourceMrid:
+                          type: string
+                          format: uuid
+                          description: mRID zasobu
+                          example: d0443a92-f807-45f0-867e-70cf5321dec7
+                        registeredResourceCode:
+                          type: string
+                          minLength: 36
+                          maxLength: 36
+                          description: Kod zasobu
+                        registeredResourcePRef:
+                          type: number
+                          description: Moc referencyjna zasobu
+                          minimum: 0
+                          maximum: 99999.999
+                          multipleOf: 0.001
+
+    ValidationDto:
+      type: object
+      description: Odpowiedź z wynikiem walidacji poprawności odebranego komunikatu
+      required:
+        - header
+      properties:
+        header:
+          additionalProperties: false
+          required:
+            - clientId
+            - refMsgId
+            - serverMsgId
+            - type
+            - status
+            - creationDateTime
+            - stdVersion
+          properties:
+            clientId:
+              type: string
+              description: Identyfikator podmiotu, którego system przekazuje wynik weryfikacji poprawności komunikatu uprzednio otrzymanego od OSP lub którego system odbiera wynik weryfikacji poprawności komunikatu przesłanego do OSP - w zależności od strony inicjującej biznesowy komunikat
+              minLength: 5
+              maxLength: 5
+            refMsgId:
+              type: string
+              description: Identyfikator komunikatu referencyjnego, na który odpowiada niniejszy komunikat
+              format: uuid
+              examples:
+                - d0443a92-f807-45f0-867e-70cf5321dec7
+            serverMsgId:
+              type: string
+              description: Unikalny identyfikator komunikatu odpowiedzi
+              format: uuid
+              examples:
+                - d0443a92-f807-45f0-867e-70cf5321dec7
+            type:
+              type: string
+              description: "Typ komunikatu"
+              enum: [PNR, DNR, INR, ZKO, IKO]
+            status:
+              type: string
+              description: Status operacji przetworzenia przesłanych danych 
+              enum: [ACCEPTED, REJECTED]
+            creationDateTime:
+              type: string
+              format: date-time
+              description: "Data utworzenia komunikatu. Data i czas w formacie YYYY-MM-DDThh:mm:ss"
+              pattern: 'Z$'
+              examples:
+                - 2002-09-24T12:21:47Z
+            stdVersion:
+              type: string
+              description: "Wersja standardów B2B"
+              minLength: 3
+              maxLength: 3
+        validationResults:
+          type: array
+          minItems: 0
+          description: Komunikaty z weryfikacji technicznej/biznesowej otrzymanej wiadomości
+          items:
+            type: object
+            description: Komuikat z weryfikacji technicznej/biznesowej otrzymanej wiadomości
+            required:
+              - severity
+              - code
+            properties:
+              severity:
+                type: string
+                description: Stopień naruszenia walidacji powstałego w czasie przetwarzania
+                enum: [INFO, WARN, ERROR]
+              code:
+                type: string
+                description: Kod wyniku weryfikacji poprawności komunikatu, do którego odnosi się niniejsza odpowiedź, określony według słownika. Pełna lista wartości podana w dołączonym słowniku
+                maxLength: 10
+              field:
+                type: string
+                description: wskazanie na element w zgłoszeniu
+              message:
+                type: string
+                description: Krótki opis dla wyniku weryfikacji poprawności komunikatu, do którego odnosi się niniejsza odpowiedź. Treść zależna od kodu wyniku weryfikacji.
+                maxLength: 512
+
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: OAuth2 dla publikacji komunikatów do RabbitMQ.
+      flows:
+        clientCredentials:
+          tokenUrl: https://auth.example.com/oauth2/token
+          refreshUrl: https://auth.example.com/oauth2/refresh
+          availableScopes:
+            "rabbitmq.read:*/redispatch/redispatch-request.{sub}": "Uprawnienie do odbioru komunikatów polecenia redysponowania z dedykowanej kolejki"
+            "rabbitmq.write:*/redispatch/redispatch-decision-response.{sub}": "Uprawnienie pozwala wysyłać odpowiedź na wydane polecenie redysponowania."
+            "rabbitmq.read:*/redispatch/redispatch-information.{sub}": "Uprawnienie do odbioru informacji o poleceniu redysponowania z dedykowanej kolejki"
+            "rabbitmq.read:*/redispatch/redispatch-objects-configuration-response.{sub}": "Uprawnienie do odbioru komunikatów z konfiguracją obiektów redysponowania"
+            "rabbitmq.write:*/redispatch/redispatch-objects-configuration-query": "Uprawnienie pozwala wysyłać zapytania o konfigurację obiektów redysponowania."
+            "rabbitmq.write:*/validation/validation": "Uprawnienie pozwalające do nadawania komunikatów z wlidacją wiadomości odebranych"
+            "rabbitmq.read:*/validation/validation.{sub}": "Uprawnienie pozwala odbiór wiadomości walidujących komunikaty nadane"
+            

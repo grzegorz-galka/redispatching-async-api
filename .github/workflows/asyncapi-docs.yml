@@ -1,0 +1,44 @@
+name: Generate and Deploy AsyncAPI Docs
+
+on:
+  push:
+    branches: ["main"]  # Trigger on push to main
+    paths:
+      - 'specs/redispatching-asyncapi.yml' # Only run if the yaml file changes
+      - '.github/workflows/asyncapi-docs.yml'
+
+# Permissions required to push the generated HTML to the gh-pages branch
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Check out your code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Setup Node.js (Required for the generator)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 3. Install the AsyncAPI Generator globally
+      - name: Install AsyncAPI Generator
+        run: npm install -g @asyncapi/generator
+
+      # 4. Generate the HTML Documentation
+      # 'ag' is the command for the generator
+      # We use the standard '@asyncapi/html-template'
+      # Output is saved to the 'docs-output' folder
+      - name: Generate HTML
+        run: ag specs/redispatching-asyncapi.yml @asyncapi/html-template -o docs-output --force-write
+
+      # 5. Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs-output
