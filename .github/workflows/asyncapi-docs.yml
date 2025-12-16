@@ -26,7 +26,7 @@ jobs:
         run: npm install -g @asyncapi/generator
       
       - name: Generate HTML documentation
-        run: ag specs/redispatching-asyncapi.yml @asyncapi/html-template -o docs
+        run: ag specs/redispatching-asyncapi.yml @asyncapi/html-template -o docs -p singleFile=true --force-write
       
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
