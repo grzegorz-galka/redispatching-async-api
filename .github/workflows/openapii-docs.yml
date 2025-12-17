@@ -27,7 +27,7 @@ jobs:
         run: mkdir -p docs-output
       
       - name: Generate HTML documentation
-        run: npx @redocly/cli build-docs pecs/redispatching-openapi.yml -o docs-output/index-openapi.html      
+        run: npx @redocly/cli build-docs specs/redispatching-openapi.yml -o docs-output/index-openapi.html      
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
